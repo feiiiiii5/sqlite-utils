@@ -777,3 +777,26 @@ def test_enable_fts_cli_on_view_errors(tmpdir):
     result = CliRunner().invoke(cli_module.cli, ["enable-fts", db_path, "v", "text"])
     assert result.exit_code == 1
     assert result.output.strip() == "Error: Table v is actually a view"
+
+
+@pytest.mark.parametrize("create_triggers", (False, True))
+@pytest.mark.parametrize("fts_version", ("FTS4", "FTS5"))
+def test_enable_fts_iterator_columns(fresh_db, create_triggers, fts_version):
+    table = fresh_db.table("searchable")
+    table.insert_all(search_records)
+    table.enable_fts(
+        iter(["text", "country"]),
+        fts_version=fts_version,
+        create_triggers=create_triggers,
+    )
+    assert len(list(table.search("tanuki"))) == 1
+    assert len(list(table.search("usa"))) == 1
+
+
+def test_populate_fts_iterator_columns(fresh_db):
+    table = fresh_db.table("searchable")
+    table.insert(search_records[0])
+    table.enable_fts(["text", "country"])
+    table.insert(search_records[1])
+    table.populate_fts(iter(["text", "country"]))
+    assert len(list(table.search("usa"))) == 1
