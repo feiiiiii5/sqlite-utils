@@ -5375,7 +5375,11 @@ class Table(Queryable):
                     ]
                     most_common_results.sort(key=sort_key, reverse=True)
             if least_common:
-                if num_distinct <= common_limit:
+                # GROUP BY includes a null group, unlike count(distinct).
+                if (
+                    most_common_results is not None
+                    and num_distinct + bool(num_null) <= common_limit
+                ):
                     # No need to run the query if it will just return the results in reverse order
                     least_common_results = None
                 else:

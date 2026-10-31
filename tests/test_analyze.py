@@ -109,6 +109,28 @@ def test_analyze_column_least_common_ties_with_nulls(fresh_db):
     }
 
 
+@pytest.mark.parametrize(
+    "values,common_limit,most_common,expected_most,expected_least",
+    (
+        (["a", "a", "a", None], 1, True, [("a", 3)], [(None, 1)]),
+        ([None, None, None, "a"], 1, True, [(None, 3)], [("a", 1)]),
+        (["a", "a", "a", "b"], 2, True, [("a", 3), ("b", 1)], None),
+        (["a", "a", "a", None], 2, True, [("a", 3), (None, 1)], None),
+        (["a", "a", "a", None], 2, False, None, [(None, 1), ("a", 3)]),
+        (["a", "a", "a", None], 0, True, [], []),
+    ),
+)
+def test_analyze_column_only_skips_least_common_when_all_groups_are_returned(
+    fresh_db, values, common_limit, most_common, expected_most, expected_least
+):
+    fresh_db["t"].insert_all([{"c": value} for value in values])
+    details = fresh_db["t"].analyze_column(
+        "c", common_limit=common_limit, most_common=most_common
+    )
+    assert details.most_common == expected_most
+    assert details.least_common == expected_least
+
+
 def test_analyze_column_does_not_render_null_as_the_string_none(fresh_db):
     # analyze-tables passes value_truncate=80, and the str() of a null
     # was indistinguishable from a column that really holds "None"
