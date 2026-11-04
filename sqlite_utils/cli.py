@@ -38,6 +38,7 @@ from sqlite_utils.utils import maximize_csv_field_size_limit
 from .utils import (
     Format,
     OperationalError,
+    RowError,
     TypeTracker,
     _compile_code,
     chunks,
@@ -1143,6 +1144,8 @@ def insert_upsert_implementation(
             db.table(table).insert_all(
                 docs, pk=pk, batch_size=batch_size, alter=alter, **extra_kwargs
             )
+        except RowError as e:
+            raise click.ClickException(str(e))
         except (NoTable, InvalidColumns, PrimaryKeyRequired) as e:
             raise click.ClickException(str(e))
         except Exception as e:
@@ -1256,13 +1259,24 @@ def insert_upsert_implementation(
                 reader = itertools.chain([first_row], reader)
             else:
                 headers = first_row
-            if empty_null:
-                docs = (
-                    dict(zip(headers, [None if cell == "" else cell for cell in row]))
-                    for row in reader
-                )
-            else:
-                docs = (dict(zip(headers, row)) for row in reader)
+
+            def _csv_docs():
+                for row in reader:
+                    if len(row) > len(headers):
+                        raise RowError(
+                            f"Row {dict(zip(headers, row))} contained these extra values: {row[len(headers):]}"
+                        )
+                    if empty_null:
+                        yield dict(
+                            zip(
+                                headers,
+                                [None if cell == "" else cell for cell in row],
+                            )
+                        )
+                    else:
+                        yield dict(zip(headers, row))
+
+            docs = _csv_docs()
             # Type detection is the default, unless --no-detect-types is passed
             if not no_detect_types:
                 tracker = TypeTracker()

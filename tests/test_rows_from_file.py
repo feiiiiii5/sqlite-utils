@@ -57,6 +57,27 @@ def test_rows_from_file_extra_fields_strategies(ignore_extras, extras_key, expec
     assert list_rows == expected
 
 
+@pytest.mark.parametrize(
+    "format,data",
+    (
+        (Format.CSV, b"id,name\r\n1,Cleo,oops"),
+        (Format.TSV, b"id\tname\r\n1\tCleo\toops"),
+    ),
+)
+def test_rows_from_file_extra_values_message(format, data):
+    rows, _ = rows_from_file(BytesIO(data), format=format)
+    with pytest.raises(RowError) as ex:
+        list(rows)
+    assert str(ex.value) == (
+        "Row {'id': '1', 'name': 'Cleo'} contained these extra values: ['oops']"
+    )
+
+
+def test_rows_from_file_short_row_is_kept():
+    rows, _ = rows_from_file(BytesIO(b"a,b,c\n1,2"), format=Format.CSV)
+    assert list(rows) == [{"a": "1", "b": "2", "c": None}]
+
+
 def test_rows_from_file_error_on_string_io():
     with pytest.raises(TypeError) as ex:
         rows_from_file(StringIO("id,name\r\n1,Cleo"))  # type: ignore[arg-type]

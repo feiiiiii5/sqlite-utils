@@ -244,13 +244,28 @@ def test_insert_csv_empty_null(db_path, empty_null):
         cli.cli,
         ["insert", db_path, "data", "-"] + options,
         catch_exceptions=False,
-        input="foo,bar,baz\n1,,cat,dog",
+        input="foo,bar,baz\n1,,cat",
     )
     assert result.exit_code == 0
     db = Database(db_path)
     assert [r for r in db.table("data").rows] == [
         {"foo": "1", "bar": None if empty_null else "", "baz": "cat"}
     ]
+
+
+@pytest.mark.parametrize("flag", ("--csv", "--tsv"))
+def test_insert_extra_values_error(tmpdir, flag):
+    db_path = str(tmpdir / "data.db")
+    separator = "\t" if flag == "--tsv" else ","
+    result = CliRunner().invoke(
+        cli.cli,
+        ["insert", db_path, "data", "-", flag],
+        input=f"id{separator}name\n1{separator}Cleo{separator}dog\n",
+    )
+    assert result.exit_code == 1
+    assert result.output.strip() == (
+        "Error: Row {'id': '1', 'name': 'Cleo'} contained these extra values: ['dog']"
+    )
 
 
 @pytest.mark.parametrize(
